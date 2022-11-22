@@ -527,6 +527,9 @@ public class Messages extends NLS
     public static String LabelChartDetailChartDevelopment;
     public static String LabelChartDetailChartDevelopmentClosing;
     public static String LabelChartDetailChartDevelopmentClosingFIFO;
+    public static String LabelChartDetailDividendYieldActual;
+    public static String LabelChartDetailDividendYieldInvestment;
+    public static String LabelChartDetailDividendYieldInvestmentHoldingPeriod;
     public static String LabelChartDetailMarker;
     public static String LabelChartDetailMarkerDividends;
     public static String LabelChartDetailMarkerHigh;

@@ -171,7 +171,7 @@ public abstract class Transaction implements Annotated, Adaptable
      */
     public static final Comparator<Transaction> BY_DATE = new ByDate();
 
-    private static final class ByDate implements Comparator<Transaction>, Serializable
+    public static final class ByDate implements Comparator<Transaction>, Serializable
     {
         private static final long serialVersionUID = 1L;
 

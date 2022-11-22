@@ -34,6 +34,7 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.swtchart.IAxis;
+import org.swtchart.IAxis.Position;
 import org.swtchart.ILegend;
 import org.swtchart.ILineSeries;
 import org.swtchart.ILineSeries.PlotSymbolType;
@@ -70,6 +71,7 @@ import name.abuchen.portfolio.ui.util.DropDown;
 import name.abuchen.portfolio.ui.util.SimpleAction;
 import name.abuchen.portfolio.ui.util.chart.TimelineChart;
 import name.abuchen.portfolio.ui.util.chart.TimelineChartToolTip;
+//import name.abuchen.portfolio.ui.views.SecuritiesChart.ChartInterval;
 import name.abuchen.portfolio.util.FormatHelper;
 import name.abuchen.portfolio.util.Interval;
 import name.abuchen.portfolio.util.TradeCalendar;
@@ -211,6 +213,8 @@ public class SecuritiesChart
         PURCHASEPRICE(Messages.LabelChartDetailChartDevelopmentClosingFIFO), //
         INVESTMENT(Messages.LabelChartDetailMarkerInvestments), //
         DIVIDENDS(Messages.LabelChartDetailMarkerDividends), //
+        DIVIDENDYIELDACTUAL(Messages.LabelChartDetailDividendYieldActual), //
+        DIVIDENDYIELDINVESTMENT(Messages.LabelChartDetailDividendYieldInvestment), //
         EVENTS(Messages.LabelChartDetailMarkerEvents), //
         EXTREMES(Messages.LabelChartDetailMarkerHighLow), //
         FIFOPURCHASE(Messages.LabelChartDetailMarkerPurchaseFIFO), //
@@ -310,6 +314,8 @@ public class SecuritiesChart
 
     private static final Color colorFifoPurchasePrice = Colors.getColor(226, 122, 121);
     private static final Color colorMovingAveragePurchasePrice = Colors.getColor(150, 82, 81);
+    private static final Color colorDividendYield = Colors.getColor(0, 255, 0);
+    private static final Color colorDividendYieldActual = Colors.getColor(100, 255, 100);
     private static final Color colorBollingerBands = Colors.getColor(201, 141, 68);
     private static final Color colorSMA1 = Colors.getColor(179, 107, 107); // #B36B6B
     private static final Color colorSMA2 = Colors.getColor(179, 167, 107); // #B3A76B
@@ -343,6 +349,7 @@ public class SecuritiesChart
     private Security security;
 
     private TimelineChart chart;
+    private int chartDividendYieldAxisId = 0;
 
     /**
      * Calculates dynamically for each security the interval of security prices
@@ -597,6 +604,8 @@ public class SecuritiesChart
         subMenuChartDevelopment.add(addMenuAction(ChartDetails.PURCHASEPRICE));
         subMenuChartMarker.add(addMenuAction(ChartDetails.INVESTMENT));
         subMenuChartMarker.add(addMenuAction(ChartDetails.DIVIDENDS));
+        subMenuChartMarker.add(addMenuAction(ChartDetails.DIVIDENDYIELDACTUAL));
+        subMenuChartMarker.add(addMenuAction(ChartDetails.DIVIDENDYIELDINVESTMENT));
         subMenuChartMarker.add(addMenuAction(ChartDetails.EVENTS));
         subMenuChartMarker.add(addMenuAction(ChartDetails.EXTREMES));
         subMenuChartMarker.add(addMenuAction(ChartDetails.FIFOPURCHASE));
@@ -856,6 +865,25 @@ public class SecuritiesChart
         }
     }
 
+    private void enableDividendYieldAxis( boolean toggle )
+    {
+        if ( toggle && chartDividendYieldAxisId == 0 ) 
+        {
+            // secondary y axis for dividend yield
+            chartDividendYieldAxisId = chart.getAxisSet().createYAxis();
+            IAxis yAxis2 = chart.getAxisSet().getYAxis(chartDividendYieldAxisId);
+            yAxis2.getTitle().setVisible(false);
+            yAxis2.getTick().setForeground(colorDividendYieldActual);
+            yAxis2.setPosition(Position.Secondary);
+        }
+        
+        if ( !toggle && chartDividendYieldAxisId == 0 ) 
+        {
+            chart.getAxisSet().deleteYAxis(chartDividendYieldAxisId);
+            chartDividendYieldAxisId = 0;
+        }
+    }
+
     private void addChartMarkerBackground(ChartInterval chartInterval, ChartRange range)
     {
         if (chartConfig.contains(ChartDetails.BOLLINGERBANDS))
@@ -924,7 +952,23 @@ public class SecuritiesChart
         if (chartConfig.contains(ChartDetails.EMA_200DAYS))
             addEMAMarkerLines(chartInterval, Messages.LabelChartDetailMovingAverageEMA,
                             Messages.LabelChartDetailMovingAverage_200days, 200, colorEMA7);
-
+        
+        if (chartConfig.contains(ChartDetails.DIVIDENDYIELDACTUAL)) 
+        {
+            enableDividendYieldAxis(true);
+            addDividendYieldActualMarkerLines(chartInterval);
+        }
+        
+        if (chartConfig.contains(ChartDetails.DIVIDENDYIELDINVESTMENT)) 
+        {
+            enableDividendYieldAxis(true);
+            addDividendYieldInvestmentMarkerLines(chartInterval);
+        }
+        if (!chartConfig.contains(ChartDetails.DIVIDENDYIELDINVESTMENT) &&
+            !chartConfig.contains(ChartDetails.DIVIDENDYIELDACTUAL) ) 
+        {
+            enableDividendYieldAxis(false);
+        }
         if (chartConfig.contains(ChartDetails.SHOW_LIMITS))
             addLimitLines(chartInterval, range);
     }
@@ -1263,6 +1307,162 @@ public class SecuritiesChart
 
             return Values.Quote.format(perShare);
         }
+    }
+    private void addDividendYieldActualMarkerLines(ChartInterval interval)
+    {        
+        ChartLineSeriesAxes chartDYLines = new DividendYield(client, this.security, interval).getDY();
+        if (chartDYLines == null || chartDYLines.getValues() == null || chartDYLines.getDates() == null)
+            return;
+
+        ILineSeries lineSeriesDY = (ILineSeries) chart.getSeriesSet().createSeries(SeriesType.LINE, Messages.LabelChartDetailDividendYieldActual);
+        lineSeriesDY.setXDateSeries(chartDYLines.getDates());
+        lineSeriesDY.setLineWidth(2);
+        lineSeriesDY.enableArea(false);
+        lineSeriesDY.setSymbolType(PlotSymbolType.NONE);
+        lineSeriesDY.setYSeries(chartDYLines.getValues());
+        lineSeriesDY.setAntialias(SWT.ON);
+        lineSeriesDY.setLineColor( colorDividendYieldActual );
+        // assign series to second Y axis
+        lineSeriesDY.setYAxisId(chartDividendYieldAxisId);
+        chart.adjustRange();
+    }
+    
+    private void addDividendYieldInvestmentMarkerLines(ChartInterval interval)
+    {
+        // securities w/o currency (e.g. index) cannot be bought and hence have
+        // no purchase price
+        if (security.getCurrencyCode() == null)
+            return;
+
+        // create a list of dates that are relevant for FIFO purchase price
+        // changes (i.e. all purchase and sell events)
+        Client filteredClient = new ClientSecurityFilter(security).filter(client);
+        CurrencyConverter securityCurrency = converter.with(security.getCurrencyCode());
+
+        LocalDate today = LocalDate.now();
+
+        List<PortfolioTransaction> tCandidates = client.getPortfolios().stream() //
+                        .flatMap(p -> p.getTransactions().stream()) //
+                        .filter(t -> t.getSecurity().equals(security))
+                        .filter(t -> !(    t.getType() == PortfolioTransaction.Type.TRANSFER_IN
+                                        || t.getType() == PortfolioTransaction.Type.TRANSFER_OUT))
+                        .filter(t -> t.getDateTime().toLocalDate().isBefore(today))
+                        .sorted(new Transaction.ByDate())//
+                        .collect(Collectors.toList());
+
+        // calculate FIFO purchase price for each event - separate lineSeries
+        // per holding period
+
+        List<Double> values = new ArrayList<>();
+        List<LocalDate> dates = new ArrayList<>();
+        int seriesCounter = 0;
+
+        //for (PortfolioTransaction eventDate : tCandidates)
+        for (Integer pTindex = 0; pTindex < tCandidates.size(); ++pTindex)
+        {
+            LocalDate pT = tCandidates.get(pTindex).getDateTime().toLocalDate();
+            LocalDate next_pT = ( ( pTindex + 1 ) < tCandidates.size() ) ? tCandidates.get(pTindex+1).getDateTime().toLocalDate() : today;
+            
+            
+            Optional<Double> purchasePrice = getPurchasePrice(filteredClient, securityCurrency, pT);
+
+            if (purchasePrice.isPresent())
+            {
+                
+                List<SecurityPrice> prices = security.getPricesIncludingLatest().stream() //
+                                .filter(  p ->  pT == null || 
+                                        ( interval.getStart().isBefore( p.getDate() ) &&
+                                                   pT.isBefore( p.getDate().plusDays(1) ) &&
+                                              next_pT.isAfter(  p.getDate() ) ) )
+                                .collect(Collectors.toList());
+                if (prices == null)
+                    return;
+
+                
+                List<AccountTransaction> paidDividends = 
+                client.getAccounts().stream().flatMap(a -> a.getTransactions().stream()) //
+                        .filter(t -> t.getSecurity() == security)
+                        .filter(t -> t.getType() == AccountTransaction.Type.DIVIDENDS)
+                        .collect(Collectors.toList());
+                if (paidDividends == null)
+                    return;
+
+                //do calculation
+                for (int index = 0; index < prices.size(); ++index)
+                {            
+                    final int tindex = index;
+                    List<Double> k = new ArrayList<Double>();
+                    paidDividends.stream()
+                                 .filter(t -> ( t.getDateTime().toLocalDate().isBefore(prices.get(tindex).getDate().plusDays(1)) && 
+                                                t.getDateTime().toLocalDate().isAfter(prices.get(tindex).getDate().minusYears(1))) )
+                                 .forEach(t -> {    
+                                                Optional<Unit> grossValue = t.getUnit(Unit.Type.GROSS_VALUE);
+                                                long gross = grossValue.isPresent() ? grossValue.get().getForex().getAmount()
+                                                                                    : t.getGrossValueAmount();
+                                                long perShare = Math.round(gross * Values.Share.divider() * Values.Quote.factorToMoney());
+                                                if (t.getShares() != 0L ) 
+                                                    perShare = perShare / t.getShares(); 
+                                                
+                                                k.add( perShare / Values.Quote.divider() ); 
+                                               }
+                                          );
+
+                    //go on
+                    double dividendAmountLastYear = 0;
+                    for (double value:k)
+                        dividendAmountLastYear += value;
+                    
+                    double dividendYield = ( dividendAmountLastYear * 100 ) /
+                                           ( purchasePrice.get() );
+
+                    values.add(dividendYield);
+                    dates.add(prices.get(index).getDate());
+                }
+            }
+            else
+            {
+                if (!dates.isEmpty())
+                {
+                    // add previous value if the data series ends here (no more
+                    // future events)
+
+                    createDividendYieldInvestmentMarkerLines(values, dates, seriesCounter++);
+
+                    values.clear();
+                    dates.clear();
+                }
+                else if (dates.isEmpty())
+                {
+                    // if no holding period exists, then do not add the event at
+                    // all
+                }
+            }
+        }
+
+        // add today if needed
+
+//        getPurchasePrice(filteredClient, securityCurrency, today).ifPresent(price -> {
+//            dates.add(today);
+//            values.add(price);
+//        });
+//
+        if (!dates.isEmpty())
+            createDividendYieldInvestmentMarkerLines(values, dates, seriesCounter);
+    }
+    
+    private void createDividendYieldInvestmentMarkerLines(List<Double> values, List<LocalDate> dates, int seriesCounter)
+    {
+        String label = seriesCounter == 0 ? Messages.LabelChartDetailDividendYieldInvestment
+                        : MessageFormat.format(Messages.LabelChartDetailDividendYieldInvestmentHoldingPeriod, seriesCounter + 1);
+
+        ILineSeries series = (ILineSeries) chart.getSeriesSet().createSeries(SeriesType.LINE, label);
+
+        series.setSymbolType(PlotSymbolType.NONE);
+        series.setYAxisId(chartDividendYieldAxisId);
+        series.enableStep(true);
+
+        configureSeriesPainter(series, TimelineChart.toJavaUtilDate(dates.toArray(new LocalDate[0])),
+                        Doubles.toArray(values), colorDividendYield, 2, LineStyle.SOLID, false, seriesCounter == 0);
     }
 
     private void addEventMarkerLines(ChartInterval chartInterval)
