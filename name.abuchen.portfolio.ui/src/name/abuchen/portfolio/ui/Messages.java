@@ -57,6 +57,7 @@ public class Messages extends NLS
     public static String BookmarksListView_title;
     public static String BookmarksListView_url;
     public static String BtnLabelApply;
+    public static String BtnLabelApplyAndClose;
     public static String BtnLabelOpenInvestmentPlanView;
     public static String BtnLabelRestartLater;
     public static String BtnLabelRestartNow;
@@ -606,6 +607,8 @@ public class Messages extends NLS
     public static String LabelExpandAll;
     public static String LabelExpenses;
     public static String LabelError;
+    public static String LabelErrorNoHoldings;
+    public static String LabelErrorNoTaxonomySelected;
     public static String LabelEurostatRegion;
     public static String LabelExcessReturnBaselineDataSeries;
     public static String LabelExcessReturnOperator;
@@ -1048,6 +1051,7 @@ public class Messages extends NLS
     public static String PrefFinnhubAPIKey;
     public static String PrefLabelAlwaysDisplayCurrencyCode;
     public static String PrefLabelAutoSaveFrequency;
+    public static String PrefLabelDisplayPA;
     public static String PrefLabelEnableExperimentalFeatures;
     public static String PrefLabelNote;
     public static String PrefLabelProxyHost;
@@ -1121,6 +1125,8 @@ public class Messages extends NLS
     public static String SecurityMenuExportCSV;
     public static String SecurityMenuImportCSV;
     public static String SecurityMenuImportHTML;
+    public static String SecurityMenuNewCryptocurrency;
+    public static String SecurityMenuNewCryptocurrencyMessage;
     public static String SecurityMenuNewExchangeRate;
     public static String SecurityMenuNewHICP;
     public static String SecurityMenuNewSecurity;
