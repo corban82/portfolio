@@ -54,7 +54,6 @@ import name.abuchen.portfolio.datatransfer.actions.CheckForexGrossValueAction;
 import name.abuchen.portfolio.datatransfer.actions.CheckSecurityRelatedValuesAction;
 import name.abuchen.portfolio.datatransfer.actions.CheckValidTypesAction;
 import name.abuchen.portfolio.datatransfer.actions.DetectDuplicatesAction;
-import name.abuchen.portfolio.datatransfer.actions.MarkNonImportableAction;
 import name.abuchen.portfolio.model.Account;
 import name.abuchen.portfolio.model.AccountTransaction;
 import name.abuchen.portfolio.model.AccountTransferEntry;
@@ -75,6 +74,7 @@ import name.abuchen.portfolio.ui.jobs.AbstractClientJob;
 import name.abuchen.portfolio.ui.util.FormDataFactory;
 import name.abuchen.portfolio.ui.util.LabelOnly;
 import name.abuchen.portfolio.ui.util.SimpleAction;
+import name.abuchen.portfolio.ui.util.viewers.ColumnViewerSorter;
 import name.abuchen.portfolio.ui.util.viewers.CopyPasteSupport;
 import name.abuchen.portfolio.ui.wizards.AbstractWizardPage;
 
@@ -186,6 +186,14 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         setControl(container);
         container.setLayout(new FormLayout());
 
+        List<Account> accounts = client.getActiveAccounts();
+        if (accounts.isEmpty())
+            accounts = client.getAccounts();
+
+        List<Portfolio> portfolios = client.getActivePortfolios();
+        if (portfolios.isEmpty())
+            portfolios = client.getPortfolios();
+
         Composite targetContainer = new Composite(container, SWT.NONE);
         GridLayoutFactory.fillDefaults().numColumns(4).applyTo(targetContainer);
 
@@ -194,7 +202,7 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         Combo cmbAccount = new Combo(targetContainer, SWT.READ_ONLY);
         primaryAccount = new ComboViewer(cmbAccount);
         primaryAccount.setContentProvider(ArrayContentProvider.getInstance());
-        primaryAccount.setInput(client.getActiveAccounts());
+        primaryAccount.setInput(accounts);
         primaryAccount.addSelectionChangedListener(e -> checkEntriesAndRefresh(allEntries));
 
         lblSecondaryAccount = new Label(targetContainer, SWT.NONE);
@@ -203,7 +211,7 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         Combo cmbAccountTarget = new Combo(targetContainer, SWT.READ_ONLY);
         secondaryAccount = new ComboViewer(cmbAccountTarget);
         secondaryAccount.setContentProvider(ArrayContentProvider.getInstance());
-        secondaryAccount.setInput(client.getActiveAccounts());
+        secondaryAccount.setInput(accounts);
         secondaryAccount.getControl().setVisible(false);
 
         Label lblPrimaryPortfolio = new Label(targetContainer, SWT.NONE);
@@ -211,7 +219,7 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         Combo cmbPortfolio = new Combo(targetContainer, SWT.READ_ONLY);
         primaryPortfolio = new ComboViewer(cmbPortfolio);
         primaryPortfolio.setContentProvider(ArrayContentProvider.getInstance());
-        primaryPortfolio.setInput(client.getActivePortfolios());
+        primaryPortfolio.setInput(portfolios);
         primaryPortfolio.addSelectionChangedListener(e -> checkEntriesAndRefresh(allEntries));
 
         lblSecondaryPortfolio = new Label(targetContainer, SWT.NONE);
@@ -220,7 +228,7 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         Combo cmbPortfolioTarget = new Combo(targetContainer, SWT.READ_ONLY);
         secondaryPortfolio = new ComboViewer(cmbPortfolioTarget);
         secondaryPortfolio.setContentProvider(ArrayContentProvider.getInstance());
-        secondaryPortfolio.setInput(client.getActivePortfolios());
+        secondaryPortfolio.setInput(portfolios);
         secondaryPortfolio.getControl().setVisible(false);
 
         preselectDropDowns();
@@ -285,6 +293,8 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         // be imported into the same account
 
         List<Account> activeAccounts = client.getActiveAccounts();
+        if (activeAccounts.isEmpty())
+            activeAccounts.addAll(client.getAccounts());
         if (!activeAccounts.isEmpty())
         {
             String uuid = account != null ? account.getUUID()
@@ -297,6 +307,8 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         }
 
         List<Portfolio> activePortfolios = client.getActivePortfolios();
+        if (activePortfolios.isEmpty())
+            activePortfolios.addAll(client.getPortfolios());
         if (!activePortfolios.isEmpty())
         {
             String uuid = portfolio != null ? portfolio.getUUID()
@@ -344,6 +356,8 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
                         image = Images.ERROR;
                         break;
                     case OK:
+                        image = Images.OK;
+                        break;
                     default:
                 }
                 return image != null ? image.image() : null;
@@ -389,6 +403,7 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
                 return date != null ? Values.DateTime.format(date) : null;
             }
         });
+        ColumnViewerSorter.create(entry -> ((ExtractedEntry) entry).getItem().getDate()).attachTo(viewer, column);
         layout.setColumnData(column.getColumn(), new ColumnPixelData(80, true));
 
         column = new TableViewerColumn(viewer, SWT.NONE);
@@ -720,12 +735,12 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
 
     private void setResults(List<ExtractedEntry> entries, List<Exception> errors)
     {
+        allEntries.addAll(entries);
+        extractionErrors.addAll(errors);
+
         checkEntries(entries);
 
-        allEntries.addAll(entries);
         tableViewer.setInput(allEntries);
-        extractionErrors.addAll(errors);
-        errorTableViewer.setInput(extractionErrors);
 
         for (ExtractedEntry entry : entries)
         {
@@ -756,21 +771,31 @@ public class ReviewExtractedItemsPage extends AbstractWizardPage implements Impo
         actions.add(new DetectDuplicatesAction(client));
         actions.add(new CheckCurrenciesAction());
         actions.add(new CheckForexGrossValueAction());
-        actions.add(new MarkNonImportableAction());
 
         List<Exception> allErrors = new ArrayList<>(extractionErrors);
 
         for (ExtractedEntry entry : entries)
         {
             entry.clearStatus();
-            for (ImportAction action : actions)
-            {
-                ImportAction.Status actionStatus = entry.getItem().apply(action, this);
-                entry.addStatus(actionStatus);
-                if (actionStatus.getCode() == ImportAction.Status.Code.ERROR)
-                    allErrors.add(new IOException(
-                                    entry.getItem().getSubject().getNote() + ": " + actionStatus.getMessage())); //$NON-NLS-1$
 
+            if (entry.getItem().isFailure())
+            {
+                entry.addStatus(new ImportAction.Status(Code.ERROR, entry.getItem().getFailureMessage()));
+                allErrors.add(new IOException(entry.getItem().getFailureMessage() + ": " + entry.getItem().toString())); //$NON-NLS-1$
+            }
+            else
+            {
+                for (ImportAction action : actions)
+                {
+                    ImportAction.Status actionStatus = entry.getItem().apply(action, this);
+                    entry.addStatus(actionStatus);
+                    if (actionStatus.getCode() == ImportAction.Status.Code.ERROR)
+                    {
+                        allErrors.add(new IOException(actionStatus.getMessage() + ": " //$NON-NLS-1$
+                                        + entry.getItem().toString()));
+                    }
+                    
+                }
             }
         }
 

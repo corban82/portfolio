@@ -6,12 +6,7 @@ if [ -z $PCK_VERSION ]; then
   exit 1
 fi
 
-github-release release \
-    --user buchen \
-    --repo portfolio \
-    --tag ${PCK_VERSION} \
-    --name ${PCK_VERSION} \
-    --pre-release
+gh release create --repo buchen/portfolio --draft --title ${PCK_VERSION} ${PCK_VERSION}
 
 BASE=$(pwd)/../../portfolio-product/target/products/
 BASE_GPG=$(pwd)/../../portfolio-product/target/gpg/target/products/
@@ -19,6 +14,7 @@ BASE_GPG=$(pwd)/../../portfolio-product/target/gpg/target/products/
 FILES=$(cat <<EOF
 PortfolioPerformance-${PCK_VERSION}-setup.exe
 PortfolioPerformance-${PCK_VERSION}-linux.gtk.x86_64.tar.gz
+PortfolioPerformance-${PCK_VERSION}-linux.gtk.aarch64.tar.gz
 PortfolioPerformance-${PCK_VERSION}-win32.win32.x86_64.zip
 PortfolioPerformance-distro-${PCK_VERSION}-win32.win32.x86_64.zip
 PortfolioPerformance-${PCK_VERSION}-x86_64.dmg

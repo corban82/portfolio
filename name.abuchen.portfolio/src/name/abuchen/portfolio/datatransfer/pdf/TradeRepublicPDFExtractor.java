@@ -1,12 +1,14 @@
 package name.abuchen.portfolio.datatransfer.pdf;
 
-import static name.abuchen.portfolio.datatransfer.pdf.PDFExtractorUtils.checkAndSetGrossUnit;
+import static name.abuchen.portfolio.datatransfer.ExtractorUtils.checkAndSetGrossUnit;
 
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import name.abuchen.portfolio.Messages;
+import name.abuchen.portfolio.datatransfer.ExtrExchangeRate;
+import name.abuchen.portfolio.datatransfer.ExtractorUtils;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Block;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.DocumentType;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Transaction;
@@ -31,6 +33,7 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
         addDividendeTransaction();
         addAccountStatementTransaction();
         addTaxStatementTransaction();
+        addInterestStatementTransaction();
         addAdvanceTaxTransaction();
         addCaptialReductionTransaction();
         addDeliveryInOutBoundTransaction();
@@ -227,7 +230,7 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                     Money grossValueBasis = Money.of(asCurrencyCode(v.get("grossCurrency")), asAmount(v.get("gross")));
                     Money cashCompensationValue = Money.of(asCurrencyCode(v.get("cashCompensationCurrency")), asAmount(v.get("cashCompensation")));
 
-                    PDFExchangeRate rate = asExchangeRate(v);
+                    ExtrExchangeRate rate = asExchangeRate(v);
                     type.getCurrentContext().putType(rate);
 
                     Money fxGross = grossValueBasis.subtract(cashCompensationValue);
@@ -236,7 +239,7 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                     t.setAmount(gross.getAmount());
                     t.setCurrencyCode(asCurrencyCode(gross.getCurrencyCode()));
 
-                    checkAndSetGrossUnit(gross, fxGross, t, type);
+                    checkAndSetGrossUnit(gross, fxGross, t, type.getCurrentContext());
                 })
 
                 // If the tax is optimized, this is a tax refund
@@ -356,10 +359,8 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                 // Storno der Dividende mit dem Ex-Tag 29.11.2019.
                 .section("type").optional()
                 .match("^(?<type>Storno) der Dividende .*$")
-                .assign((t, v) -> {
-                    if (v.get("type").equals("Storno"))
-                        t.setNote(Messages.MsgErrorOrderCancellationUnsupported);
-                })
+                .assign((t, v) -> v.getTransactionContext().put(FAILURE,
+                                Messages.MsgErrorOrderCancellationUnsupported))
 
                 // iShsV-EM Dividend UCITS ETF 10 Stk. 0,563 USD 5,63 USD
                 // Registered Shares USD o.N.
@@ -422,10 +423,11 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
 
                                 // GESAMT 3,83 EUR
                                 // GESAMT 2,83 EUR
+                                // GESAMT -30,17 EUR
                                 section -> section
                                         .attributes("amount", "currency")
                                         .match("^GESAMT [\\.,\\d]+ [\\w]{3}$")
-                                        .match("^GESAMT (?<amount>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                                        .match("^GESAMT (\\-)?(?<amount>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                                         .assign((t, v) -> {
                                             t.setCurrencyCode(asCurrencyCode(v.get("currency")));
                                             t.setAmount(asAmount(v.get("amount")));
@@ -434,56 +436,63 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                                 // GESAMT 1,630 EUR
                                 section -> section
                                         .attributes("amount", "currency")
-                                        .match("^GESAMT (?<amount>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                                        .match("^GESAMT (\\-)?(?<amount>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                                         .assign((t, v) -> {
                                             t.setCurrencyCode(asCurrencyCode(v.get("currency")));
                                             t.setAmount(asAmount(v.get("amount")));
                                         })
                         )
 
-                // GESAMT 5,63 USD
-                // Zwischensumme 1,102 EUR/USD 5,11 EUR
-                .section("fxGross", "fxCurrency", "exchangeRate", "baseCurrency", "termCurrency", "currency").optional()
-                .match("^GESAMT (?<fxGross>[\\.,\\d]+) (?<fxCurrency>[\\w]{3})$")
-                .match("^Zwischensumme (?<exchangeRate>[\\.,\\d]+) (?<baseCurrency>[\\w]{3})\\/(?<termCurrency>[\\w]{3}) [\\.,\\d]+ (?<currency>[\\w]{3})$")
-                .assign((t, v) -> {
-                    PDFExchangeRate rate = asExchangeRate(v);
-                    type.getCurrentContext().putType(rate);
+                .optionalOneOf(
+                                // @formatter:off
+                                // GESAMT 5,63 USD
+                                // Zwischensumme 1,102 EUR/USD 5,11 EUR
+                                // @formatter:on
+                                section -> section
+                                        .attributes("fxGross", "fxCurrency", "exchangeRate", "baseCurrency", "termCurrency", "currency")
+                                        .match("^GESAMT (\\-)?(?<fxGross>[\\.,\\d]+) (?<fxCurrency>[\\w]{3})$")
+                                        .match("^Zwischensumme (?<exchangeRate>[\\.,\\d]+) (?<baseCurrency>[\\w]{3})\\/(?<termCurrency>[\\w]{3}) (\\-)?[\\.,\\d]+ (?<currency>[\\w]{3})$")
+                                        .assign((t, v) -> {
+                                            ExtrExchangeRate rate = asExchangeRate(v);
+                                            type.getCurrentContext().putType(rate);
 
-                    Money fxGross = Money.of(asCurrencyCode(v.get("fxCurrency")), asAmount(v.get("fxGross")));
-                    Money gross = rate.convert(asCurrencyCode(v.get("currency")), fxGross);
+                                            Money fxGross = Money.of(asCurrencyCode(v.get("fxCurrency")), asAmount(v.get("fxGross")));
+                                            Money gross = rate.convert(asCurrencyCode(v.get("currency")), fxGross);
 
-                    checkAndSetGrossUnit(gross, fxGross, t, type);
-                })
+                                            checkAndSetGrossUnit(gross, fxGross, t, type.getCurrentContext());
+                                        })
+                                ,
+                                // @formatter:off
+                                // 1 Bruttoertrag 26,80 GBP
+                                // Zwischensumme 0,85267 EUR/GBP 0,44 EUR
+                                // GESAMT 0,44 EUR
+                                // @formatter:on
+                                section -> section
+                                        .attributes("fxGross", "fxCurrency", "exchangeRate", "baseCurrency", "termCurrency", "currency")
+                                        .match("^[\\d] Bruttoertrag (\\-)?(?<fxGross>[\\.,\\d]+) (?<fxCurrency>[\\w]{3})$")
+                                        .match("^Zwischensumme (?<exchangeRate>[\\.,\\d]+) (?<baseCurrency>[\\w]{3})\\/(?<termCurrency>[\\w]{3}) (\\-)?[\\.,\\d]+ (?<currency>[\\w]{3})$")
+                                        .assign((t, v) -> {
+                                            ExtrExchangeRate rate = asExchangeRate(v);
+                                            type.getCurrentContext().putType(rate);
 
-                // 1 Bruttoertrag 26,80 GBP
-                // Zwischensumme 0,85267 EUR/GBP 0,44 EUR
-                // GESAMT 0,44 EUR
-                .section("fxGross", "fxCurrency", "exchangeRate", "baseCurrency", "termCurrency", "currency").optional()
-                .match("^[\\d] Bruttoertrag (?<fxGross>[\\.,\\d]+) (?<fxCurrency>[\\w]{3})$")
-                .match("^Zwischensumme (?<exchangeRate>[\\.,\\d]+) (?<baseCurrency>[\\w]{3})\\/(?<termCurrency>[\\w]{3}) [\\.,\\d]+ (?<currency>[\\w]{3})$")
-                .assign((t, v) -> {
-                    PDFExchangeRate rate = asExchangeRate(v);
-                    type.getCurrentContext().putType(rate);
+                                            Money fxGross = Money.of(asCurrencyCode(v.get("fxCurrency")), asAmount(v.get("fxGross")));
+                                            Money gross = rate.convert(asCurrencyCode(v.get("currency")), fxGross);
 
-                    Money fxGross = Money.of(asCurrencyCode(v.get("fxCurrency")), asAmount(v.get("fxGross")));
-                    Money gross = rate.convert(asCurrencyCode(v.get("currency")), fxGross);
+                                            t.setAmount(gross.getAmount());
+                                            t.setCurrencyCode(asCurrencyCode(gross.getCurrencyCode()));
 
-                    t.setAmount(gross.getAmount());
-                    t.setCurrencyCode(asCurrencyCode(gross.getCurrencyCode()));
+                                            checkAndSetGrossUnit(gross, fxGross, t, type.getCurrentContext());
+                                        })
+                        )
 
-                    checkAndSetGrossUnit(gross, fxGross, t, type);
-                })
+                .conclude(ExtractorUtils.fixGrossValueA())
 
-                .conclude(PDFExtractorUtils.fixGrossValueA())
-
-                .wrap(t -> {
+                .wrap((t, ctx) -> {
                     if (t.getCurrencyCode() != null && t.getAmount() != 0)
                     {
-                        if (t.getNote() == null || !t.getNote().equals(Messages.MsgErrorOrderCancellationUnsupported))
-                            return new TransactionItem(t);
-                        else
-                            return new NonImportableItem(Messages.MsgErrorOrderCancellationUnsupported);
+                        TransactionItem item = new TransactionItem(t);
+                        item.setFailureMessage(ctx.getString(FAILURE));
+                        return item;
                     }
                     return null;
                 });
@@ -543,12 +552,13 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                 .match("^[\\d] Barausgleich (?<fxGross>[\\.,\\d]+) (?<fxCurrency>[\\w]{3})$")
                 .match("^Zwischensumme (?<exchangeRate>[\\.,\\d]+) (?<baseCurrency>[\\w]{3})\\/(?<termCurrency>[\\w]{3}) (?<gross>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> {
-                    type.getCurrentContext().putType(asExchangeRate(v));
+                    ExtrExchangeRate rate = asExchangeRate(v);
+                    type.getCurrentContext().putType(rate);
 
                     Money gross = Money.of(asCurrencyCode(v.get("currency")), asAmount(v.get("gross")));
                     Money fxGross = Money.of(asCurrencyCode(v.get("fxCurrency")), asAmount(v.get("fxGross")));
-                    
-                    checkAndSetGrossUnit(gross, fxGross, t, type);
+
+                    checkAndSetGrossUnit(gross, fxGross, t, type.getCurrentContext());
                 })
 
                 .wrap(TransactionItem::new);
@@ -820,6 +830,41 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
                 .wrap(TransactionItem::new);
     }
 
+    private void addInterestStatementTransaction()
+    {
+        DocumentType type = new DocumentType("ABRECHNUNG ZINSEN");
+        this.addDocumentTyp(type);
+
+        Transaction<AccountTransaction> pdfTransaction = new Transaction<>();
+        pdfTransaction.subject(() -> {
+            AccountTransaction entry = new AccountTransaction();
+            entry.setType(AccountTransaction.Type.INTEREST);
+            return entry;
+        });
+
+        Block firstRelevantLine = new Block("^ABRECHNUNG ZINSEN$");
+        type.addBlock(firstRelevantLine);
+        firstRelevantLine.set(pdfTransaction);
+
+        pdfTransaction
+                // zum 31.01.2023
+                .section("date")
+                .match("^zum (?<date>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4})$")
+                .assign((t, v) -> t.setDateTime(asDate(v.get("date"))))
+
+                // DE10123456789123456789 01.02.2023 0,88 EUR
+                .section("currency", "amount")
+                .match("^.* [\\d]{2}\\.[\\d]{2}\\.[\\d]{4} (?<amount>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .assign((t, v) -> {
+                    t.setAmount(asAmount(v.get("amount")));
+                    t.setCurrencyCode(asCurrencyCode(v.get("currency")));
+                })
+
+                .wrap(TransactionItem::new);
+
+        addTaxesSectionsTransaction(pdfTransaction, type);
+    }
+
     private void addAdvanceTaxTransaction()
     {
         DocumentType type = new DocumentType("Vorabpauschale");
@@ -1077,38 +1122,58 @@ public class TradeRepublicPDFExtractor extends AbstractPDFExtractor
         transaction
                 // Quellensteuer DE für US-Emittent -7,56 USD
                 .section("withHoldingTax", "currency").optional()
-                .match("^([\\d] )?Quellensteuer .* \\-(?<withHoldingTax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .match("^([\\d] )?Quellensteuer .* (\\-)?(?<withHoldingTax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> processWithHoldingTaxEntries(t, v, "withHoldingTax", type))
 
                 // Quellensteuer -12,00 USD
                 .section("withHoldingTax", "currency").optional()
-                .match("^([\\d] )?Quellensteuer \\-(?<withHoldingTax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .match("^([\\d] )?Quellensteuer (\\-)?(?<withHoldingTax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> processWithHoldingTaxEntries(t, v, "withHoldingTax", type))
 
                 // Kapitalertragssteuer -30,63 EUR
-                .section("tax", "currency").optional()
-                .match("^([\\d] )?Kapitalertragssteuer \\-(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
-                .assign((t, v) -> processTaxEntries(t, v, type))
-
                 // Kapitalertragsteuer -8,36 EUR
                 .section("tax", "currency").optional()
-                .match("^([\\d] )?Kapitalertragsteuer \\-(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .match("^([\\d] )?Kapitalertrags(s)?teuer (\\-)?(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> processTaxEntries(t, v, type))
 
                 // Solidaritätszuschlag -1,68 EUR
                 .section("tax", "currency").optional()
-                .match("^([\\d] )?Solidarit.tszuschlag \\-(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .match("^([\\d] )?Solidarit.tszuschlag (\\-)?(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> processTaxEntries(t, v, type))
 
                 // Kirchensteuer -1,68 EUR
                 .section("tax", "currency").optional()
-                .match("^([\\d] )?Kirchensteuer \\-(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .match("^([\\d] )?Kirchensteuer (\\-)?(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
                 .assign((t, v) -> processTaxEntries(t, v, type))
 
                 // Frz. Finanztransaktionssteuer -3,00 EUR
                 .section("tax", "currency").optional()
-                .match("^.* Finanztransaktionssteuer \\-(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
-                .assign((t, v) -> processTaxEntries(t, v, type));
+                .match("^.* Finanztransaktionssteuer (\\-)?(?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .assign((t, v) -> processTaxEntries(t, v, type))
+
+                // Kapitalertragsteuer Optimierung 0,360 EUR
+                .section("tax", "currency").optional()
+                .match("^Kapitalertrag(s)?steuer Optimierung (?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .assign((t, v) -> {
+                    if (v.getTransactionContext().get(FAILURE) != null)
+                        processTaxEntries(t, v, type);     
+                })
+
+                // Solidaritätszuschlag Optimierung 0,360 EUR
+                .section("tax", "currency").optional()
+                .match("^Solidarit.tszuschlag Optimierung (?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .assign((t, v) -> {
+                    if (v.getTransactionContext().get(FAILURE) != null)
+                        processTaxEntries(t, v, type);     
+                })
+
+                // Kirchensteuer Optimierung 0,360 EUR
+                .section("tax", "currency").optional()
+                .match("^Kirchensteuer Optimierung (?<tax>[\\.,\\d]+) (?<currency>[\\w]{3})$")
+                .assign((t, v) -> {
+                    if (v.getTransactionContext().get(FAILURE) != null)
+                        processTaxEntries(t, v, type);     
+                });
     }
 
     private <T extends Transaction<?>> void addFeesSectionsTransaction(T transaction, DocumentType type)

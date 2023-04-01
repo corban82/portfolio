@@ -18,10 +18,6 @@ import java.util.zip.ZipInputStream;
 
 import javax.inject.Named;
 
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.e4.core.di.annotations.CanExecute;
 import org.eclipse.e4.core.di.annotations.Execute;
 import org.eclipse.e4.ui.model.application.ui.basic.MPart;
@@ -44,6 +40,7 @@ import name.abuchen.portfolio.model.Portfolio;
 import name.abuchen.portfolio.ui.Messages;
 import name.abuchen.portfolio.ui.PortfolioPlugin;
 import name.abuchen.portfolio.ui.UIConstants;
+import name.abuchen.portfolio.ui.editor.FilePathHelper;
 import name.abuchen.portfolio.ui.editor.PortfolioPart;
 import name.abuchen.portfolio.ui.wizards.datatransfer.ImportExtractedItemsWizard;
 
@@ -90,19 +87,13 @@ public class ImportPDFHandler
 
     public static void runImport(PortfolioPart part, Shell shell, Client client, Account account, Portfolio portfolio)
     {
-        String importPath = part.getEclipsePreferences().get(UIConstants.Preferences.PDF_IMPORT_PATH, null);
-
-        if (importPath != null && !Files.isDirectory(Paths.get(importPath)))
-            importPath = null;
-
-        if (importPath == null)
-            importPath = System.getProperty("user.home"); //$NON-NLS-1$
+        FilePathHelper helper = new FilePathHelper(part, UIConstants.Preferences.PDF_IMPORT_PATH);
 
         FileDialog fileDialog = new FileDialog(shell, SWT.OPEN | SWT.MULTI);
         fileDialog.setText(Messages.PDFImportWizardAssistant);
         fileDialog.setFilterNames(new String[] { Messages.PDFImportFilterName });
         fileDialog.setFilterExtensions(new String[] { "*.pdf;*.zip" }); //$NON-NLS-1$
-        fileDialog.setFilterPath(importPath);
+        fileDialog.setFilterPath(helper.getPath());
         fileDialog.open();
 
         String[] filenames = fileDialog.getFileNames();
@@ -110,7 +101,7 @@ public class ImportPDFHandler
         if (filenames.length == 0)
             return;
 
-        part.getEclipsePreferences().put(UIConstants.Preferences.PDF_IMPORT_PATH, fileDialog.getFilterPath());
+        helper.savePath(fileDialog.getFilterPath());
 
         List<File> files = new ArrayList<>();
         List<File> filesToDelete = new ArrayList<>();
@@ -164,38 +155,25 @@ public class ImportPDFHandler
 
         try
         {
+            Map<File, List<Exception>> errors = new HashMap<>();
+            Map<Extractor, List<Extractor.Item>> result = new HashMap<>();
+
             IRunnableWithProgress operation = monitor -> {
-
                 PDFImportAssistant assistent = new PDFImportAssistant(client, files);
-
-                Map<File, List<Exception>> errors = new HashMap<>();
-
-                Map<Extractor, List<Extractor.Item>> result = assistent.run(monitor, errors);
-
-                // if we just run this async, then the main window on macOS does
-                // not regain focus and the menus are not usable
-                new Job("") //$NON-NLS-1$
-                {
-                    @Override
-                    protected IStatus run(IProgressMonitor monitor)
-                    {
-                        shell.getDisplay().asyncExec(() -> {
-                            ImportExtractedItemsWizard wizard = new ImportExtractedItemsWizard(client, preferences,
-                                            result, errors);
-                            if (account != null)
-                                wizard.setTarget(account);
-                            if (portfolio != null)
-                                wizard.setTarget(portfolio);
-                            Dialog wizwardDialog = new WizardDialog(shell, wizard);
-                            wizwardDialog.open();
-                        });
-                        return Status.OK_STATUS;
-                    }
-                }.schedule(50);
+                result.putAll(assistent.run(monitor, errors));
             };
 
             new ProgressMonitorDialog(shell).run(true, true, operation);
 
+            shell.getDisplay().asyncExec(() -> {
+                ImportExtractedItemsWizard wizard = new ImportExtractedItemsWizard(client, preferences, result, errors);
+                if (account != null)
+                    wizard.setTarget(account);
+                if (portfolio != null)
+                    wizard.setTarget(portfolio);
+                Dialog wizardDialog = new WizardDialog(shell, wizard);
+                wizardDialog.open();
+            });
         }
         catch (IllegalArgumentException | InvocationTargetException | InterruptedException e)
         {

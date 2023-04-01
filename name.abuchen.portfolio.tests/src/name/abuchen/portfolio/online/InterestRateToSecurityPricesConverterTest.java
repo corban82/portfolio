@@ -2,6 +2,7 @@ package name.abuchen.portfolio.online;
 
 import static org.junit.Assert.assertEquals;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,44 +17,45 @@ import name.abuchen.portfolio.online.InterestRateToSecurityPricesConverter.Inter
 import name.abuchen.portfolio.online.InterestRateToSecurityPricesConverter.Maturity;
 import name.abuchen.portfolio.util.Pair;
 
+@SuppressWarnings("nls")
 public class InterestRateToSecurityPricesConverterTest
 {
-    private static final List<Pair<LocalDate, Double>> gaplessData;
+    private static final List<Pair<LocalDate, BigDecimal>> gaplessData;
     static
     {
         gaplessData = new ArrayList<>();
-        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 01), 1d));
-        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 02), 0d));
-        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 03), -1d));
-        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 04), -.5d));
+        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 01), new BigDecimal(1)));
+        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 02), new BigDecimal(0)));
+        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 03), new BigDecimal(-1)));
+        gaplessData.add(new Pair<>(LocalDate.of(2021, 01, 04), new BigDecimal("-0.5")));
     }
-    private static final List<Pair<LocalDate, Double>> dataWithGap;
+    private static final List<Pair<LocalDate, BigDecimal>> dataWithGap;
     static
     {
         dataWithGap = new ArrayList<>();
-        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 01), .1d));
-        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 04), -.123d));
-        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 05), -.4565d));
+        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 01), new BigDecimal("0.1")));
+        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 04), new BigDecimal("-.123")));
+        dataWithGap.add(new Pair<>(LocalDate.of(2021, 01, 05), new BigDecimal("-.4565")));
     }
-    private static final List<Pair<LocalDate, Double>> monthlyConstantInterestRate;
+    private static final List<Pair<LocalDate, BigDecimal>> monthlyConstantInterestRate;
     static
     {
         monthlyConstantInterestRate = new ArrayList<>();
-        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 01, 01), 1d));
-        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 02, 01), 1d));
-        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 03, 01), 1d));
-        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 04, 01), 1d));
+        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 01, 01), BigDecimal.ONE));
+        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 02, 01), BigDecimal.ONE));
+        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 03, 01), BigDecimal.ONE));
+        monthlyConstantInterestRate.add(new Pair<>(LocalDate.of(2021, 04, 01), BigDecimal.ONE));
     }
-    private static final List<Pair<LocalDate, Double>> monthlyChangingInterestRate;
+    private static final List<Pair<LocalDate, BigDecimal>> monthlyChangingInterestRate;
     static
     {
         monthlyChangingInterestRate = new ArrayList<>();
-        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 01, 01), 1d));
-        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 02, 01), 0d));
-        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 03, 01), 2d));
-        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 04, 01), 1d));
+        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 01, 01), new BigDecimal(1)));
+        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 02, 01), new BigDecimal(0)));
+        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 03, 01), new BigDecimal(2)));
+        monthlyChangingInterestRate.add(new Pair<>(LocalDate.of(2021, 04, 01), new BigDecimal(1)));
     }
-    private static final double MAX_ERROR = 0.001d / 36000d;
+    private static final double MAX_ERROR = 0.0001d / 36000d;
 
     @Test
     public void testAct360Empty()
@@ -61,7 +63,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(Collections.emptyList(), Interval.DAILY, Maturity.OVER_NIGHT);
+        Collection<LatestSecurityPrice> result = converter.convert(Collections.emptyList(), Interval.DAILY,
+                        Maturity.OVER_NIGHT);
         assertEquals(0, result.size()); // NOSONAR
     }
 
@@ -79,15 +82,12 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 01, 02), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 01, 03), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 01, 04), resultList.get(3).getLeft());
-        //assertEquals(LocalDate.of(2021, 01, 05), resultList.get(4).getLeft());
         assertEquals(1d / 36000d, ((double) (resultList.get(1).getRight() - resultList.get(0).getRight()))
                         / resultList.get(0).getRight(), MAX_ERROR);
         assertEquals(0d / 36000d, ((double) (resultList.get(2).getRight() - resultList.get(1).getRight()))
                         / resultList.get(1).getRight(), MAX_ERROR);
         assertEquals(-1d / 36000d, ((double) (resultList.get(3).getRight() - resultList.get(2).getRight()))
                         / resultList.get(2).getRight(), MAX_ERROR);
-        //assertEquals(-.5d / 36000d, ((double) (resultList.get(4).getRight() - resultList.get(3).getRight()))
-        //                / resultList.get(3).getRight(), MAX_ERROR);
     }
 
     @Test
@@ -115,7 +115,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.OVER_NIGHT);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.OVER_NIGHT);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -137,7 +138,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.ONE_MONTH);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.ONE_MONTH);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -159,7 +161,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.TWO_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.TWO_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -181,7 +184,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.THREE_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.THREE_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -203,7 +207,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.SIX_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.SIX_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -225,7 +230,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.ONE_YEAR);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.ONE_YEAR);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -247,7 +253,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.TWO_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.TWO_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -269,7 +276,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.THREE_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.THREE_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -291,7 +299,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.FIVE_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.FIVE_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -313,7 +322,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.SEVEN_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.SEVEN_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -335,7 +345,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY, Maturity.TEN_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyConstantInterestRate, Interval.MONTHLY,
+                        Maturity.TEN_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -357,7 +368,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.OVER_NIGHT);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.OVER_NIGHT);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -379,8 +391,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate,
-                        Interval.MONTHLY, Maturity.ONE_MONTH);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.ONE_MONTH);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -388,11 +400,11 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d/12d/(1d + 0.01d/12d))
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d / 12d / (1d + 0.01d / 12d))
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d/12d/(1d + 0.00d/12d))
+        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d / 12d / (1d + 0.00d / 12d))
                         - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d/12d/(1d + 0.02d/12d))
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d / 12d / (1d + 0.02d / 12d))
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -402,7 +414,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.TWO_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.TWO_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -410,11 +423,11 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d/6d/(1d + 0.01d/6d))
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d / 6d / (1d + 0.01d / 6d))
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d/6d/(1d + 0.00d/6d))
+        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d / 6d / (1d + 0.00d / 6d))
                         - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d/6d/(1d + 0.02d/6d))
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d / 6d / (1d + 0.02d / 6d))
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -424,7 +437,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.THREE_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.THREE_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -432,11 +446,11 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d/4d/(1d + 0.01d/4d))
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d / 4d / (1d + 0.01d / 4d))
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d/4d/(1d + 0.00d/4d))
+        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d / 4d / (1d + 0.00d / 4d))
                         - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d/4d/(1d + 0.02d/4d))
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d / 4d / (1d + 0.02d / 4d))
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -446,7 +460,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.SIX_MONTHS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.SIX_MONTHS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -454,11 +469,11 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d/2d/(1d + 0.01d/2d))
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d / 2d / (1d + 0.01d / 2d))
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d/2d/(1d + 0.00d/2d))
+        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d / 2d / (1d + 0.00d / 2d))
                         - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d/2d/(1d + 0.02d/2d))
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d / 2d / (1d + 0.02d / 2d))
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -468,7 +483,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.ONE_YEAR);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.ONE_YEAR);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -476,12 +492,18 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01/1.01)
-                        - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02/1d)
-                        - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight()/ (1 + 0.01/1.02)
-                        - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
+        assertEquals(1d / 36000d * 31,
+                        ((double) (resultList.get(1).getRight() / (1 + 0.01 / 1.01) - resultList.get(0).getRight()))
+                                        / resultList.get(0).getRight(),
+                        MAX_ERROR);
+        assertEquals(0d / 36000d * 28,
+                        ((double) (resultList.get(2).getRight() / (1 - 0.02 / 1d) - resultList.get(1).getRight()))
+                                        / resultList.get(1).getRight(),
+                        MAX_ERROR);
+        assertEquals(2d / 36000d * 31,
+                        ((double) (resultList.get(3).getRight() / (1 + 0.01 / 1.02) - resultList.get(2).getRight()))
+                                        / resultList.get(2).getRight(),
+                        MAX_ERROR);
     }
 
     @Test
@@ -490,7 +512,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.TWO_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.TWO_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -498,11 +521,13 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 1.99009901/1.01) 
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 1.99009901 / 1.01)
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 2d/1d)
-                        - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 1.980392157/1.02)
+        assertEquals(0d / 36000d * 28,
+                        ((double) (resultList.get(2).getRight() / (1 - 0.02d * 2d / 1d) - resultList.get(1).getRight()))
+                                        / resultList.get(1).getRight(),
+                        MAX_ERROR);
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 1.980392157 / 1.02)
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -512,7 +537,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.THREE_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.THREE_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -520,11 +546,13 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 2.970395059/1.01)
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 2.970395059 / 1.01)
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 3d/1d)
-                        - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 2.941560938/1.02)
+        assertEquals(0d / 36000d * 28,
+                        ((double) (resultList.get(2).getRight() / (1 - 0.02d * 3d / 1d) - resultList.get(1).getRight()))
+                                        / resultList.get(1).getRight(),
+                        MAX_ERROR);
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 2.941560938 / 1.02)
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -534,7 +562,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.FIVE_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.FIVE_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -542,11 +571,13 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 4.901965552/1.01)
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 4.901965552 / 1.01)
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 5d/1d)
-                        - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 4.807728699/1.02)
+        assertEquals(0d / 36000d * 28,
+                        ((double) (resultList.get(2).getRight() / (1 - 0.02d * 5d / 1d) - resultList.get(1).getRight()))
+                                        / resultList.get(1).getRight(),
+                        MAX_ERROR);
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 4.807728699 / 1.02)
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -556,7 +587,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.SEVEN_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.SEVEN_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -564,11 +596,13 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 6.795476475/1.01)
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 6.795476475 / 1.01)
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 7d/1d)
-                        - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 6.601430891/1.02)
+        assertEquals(0d / 36000d * 28,
+                        ((double) (resultList.get(2).getRight() / (1 - 0.02d * 7d / 1d) - resultList.get(1).getRight()))
+                                        / resultList.get(1).getRight(),
+                        MAX_ERROR);
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 6.601430891 / 1.02)
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 
@@ -578,7 +612,8 @@ public class InterestRateToSecurityPricesConverterTest
         InterestRateToSecurityPricesConverter converter = new InterestRateToSecurityPricesConverter(
                         InterestRateType.ACT_360);
 
-        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY, Maturity.TEN_YEARS);
+        Collection<LatestSecurityPrice> result = converter.convert(monthlyChangingInterestRate, Interval.MONTHLY,
+                        Maturity.TEN_YEARS);
         assertEquals(4, result.size());
 
         List<Pair<LocalDate, Long>> resultList = toListAndCheck(result);
@@ -586,11 +621,11 @@ public class InterestRateToSecurityPricesConverterTest
         assertEquals(LocalDate.of(2021, 02, 01), resultList.get(1).getLeft());
         assertEquals(LocalDate.of(2021, 03, 01), resultList.get(2).getLeft());
         assertEquals(LocalDate.of(2021, 04, 01), resultList.get(3).getLeft());
-        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 9.566017576/1.01)
+        assertEquals(1d / 36000d * 31, ((double) (resultList.get(1).getRight() / (1 + 0.01d * 9.566017576 / 1.01)
                         - resultList.get(0).getRight())) / resultList.get(0).getRight(), MAX_ERROR);
-        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 10d/1d)
+        assertEquals(0d / 36000d * 28, ((double) (resultList.get(2).getRight() / (1 - 0.02d * 10d / 1d)
                         - resultList.get(1).getRight())) / resultList.get(1).getRight(), MAX_ERROR);
-        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 9.162236706/1.02)
+        assertEquals(2d / 36000d * 31, ((double) (resultList.get(3).getRight() / (1 + 0.01d * 9.162236706 / 1.02)
                         - resultList.get(2).getRight())) / resultList.get(2).getRight(), MAX_ERROR);
     }
 

@@ -4,6 +4,7 @@ import static name.abuchen.portfolio.util.TextUtil.trim;
 
 import java.math.BigDecimal;
 
+import name.abuchen.portfolio.datatransfer.ExtractorUtils;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Block;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.DocumentType;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Transaction;
@@ -20,10 +21,12 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
     {
         super(client);
 
-        addBankIdentifier("Yuh Accounts"); //$NON-NLS-1$
+        addBankIdentifier("Yuh"); //$NON-NLS-1$^
 
         addBuySellTransaction();
-        addDepotStatementTransaction();
+        addDividendTransaction();
+        addPaymentTransaction();
+        addInterestTransaction();
     }
 
     @Override
@@ -52,7 +55,7 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
                 // RICHEMONT N ISIN: CH0210483332 SIX Swiss Exchange 
                 // 1.0269 97.38 CHF 100.00
                 .section("name", "isin", "currency")
-                .match("^(?<name>.*) ISIN: (?<isin>[A-Z]{2}[A-Z0-9]{9}[0-9]) .*$")
+                .match("^(?<name>.*) ISIN: (?<isin>[A-Z]{2}[A-Z0-9]{9}[0-9]).*$")
                 .match("^[\\.'\\d]+ [\\.'\\d]+ (?<currency>[\\w]{3}) [\\.'\\d]+$")
                 .assign((t, v) -> t.setSecurity(getOrCreateSecurity(v)))
 
@@ -85,7 +88,60 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
         addFeesSectionsTransaction(pdfTransaction, type);
     }
 
-    private void addDepotStatementTransaction()
+    private void addDividendTransaction()
+    {
+        DocumentType type = new DocumentType("Dividende");
+        this.addDocumentTyp(type);
+
+        Block block = new Block("Dividende .* [\\d+].*$");
+        type.addBlock(block);
+        Transaction<AccountTransaction> pdfTransaction = new Transaction<AccountTransaction>().subject(() -> {
+            AccountTransaction entry = new AccountTransaction();
+            entry.setType(AccountTransaction.Type.DIVIDENDS);
+            return entry;
+        });
+
+        pdfTransaction
+                // ROCHE GS ISIN: CH0012032048NKN: 1203204 4.0542
+                // Anzahl 4.0542
+                // Dividende 9.5 CHF
+                .section("name", "isin", "currency")
+                .match("^(?<name>.*) ISIN: (?<isin>[A-Z]{2}[A-Z0-9]{9}[0-9]).*$")
+                .match("^Dividende [\\.'\\d]+ (?<currency>[\\w]{3})$")
+                .assign((t, v) -> t.setSecurity(getOrCreateSecurity(v)))
+
+                // Anzahl 4.0542
+                .section("shares")
+                .match("^Anzahl (?<shares>[\\.,'\\d]+)$")
+                .assign((t, v) -> t.setShares(asShares(v.get("shares"))))
+
+                // Valutadatum 20.03.2023
+                .section("date")
+                .match("^Valutadatum (?<date>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4})$")
+                .assign((t, v) -> t.setDateTime(asDate(v.get("date"))))
+
+                // Total CHF 25.03
+                .section("currency", "amount")
+                .match("^Total (?<currency>[\\w]{3}) (?<amount>[\\.'\\d]+)$")
+                .assign((t, v) -> {
+                    t.setCurrencyCode(asCurrencyCode(v.get("currency")));
+                    t.setAmount(asAmount(v.get("amount")));
+                })
+
+                // Dividende Unsere Referenz: 312345678 
+                .section("note").optional()
+                .match("^.* (?<note>Referenz: .*)$")
+                .assign((t, v) -> t.setNote(trim(v.get("note"))))
+
+                .wrap(TransactionItem::new);
+
+        addTaxesSectionsTransaction(pdfTransaction, type);
+        addFeesSectionsTransaction(pdfTransaction, type);
+
+        block.set(pdfTransaction);
+    }
+
+    private void addPaymentTransaction()
     {
         DocumentType type = new DocumentType("Zahlungsverkehr");
         this.addDocumentTyp(type);
@@ -97,11 +153,18 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
             return entry;
         });
 
-        Block firstRelevantLine = new Block("^Zahlungsverkehr \\- Gutschrift .*$");
+        Block firstRelevantLine = new Block("^Zahlungsverkehr \\- (Gutschrift|Belastung) .*$");
         type.addBlock(firstRelevantLine);
         firstRelevantLine.set(pdfTransaction);
 
         pdfTransaction
+                .section("type").optional()
+                .match("^Zahlungsverkehr \\- (?<type>(Gutschrift|Belastung)) .*$")
+                .assign((t, v) -> {
+                    if (v.get("type").equals("Belastung"))
+                        t.setType(AccountTransaction.Type.REMOVAL);
+                })
+
                 // Valutadatum 27.10.2022
                 .section("date")
                 .match("^Valutadatum (?<date>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4})$")
@@ -123,12 +186,59 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
                 .wrap(TransactionItem::new);
     }
 
+    private void addInterestTransaction()
+    {
+        DocumentType type = new DocumentType("Zinsabrechnung");
+        this.addDocumentTyp(type);
+
+        Transaction<AccountTransaction> pdfTransaction = new Transaction<>();
+        pdfTransaction.subject(() -> {
+            AccountTransaction entry = new AccountTransaction();
+            entry.setType(AccountTransaction.Type.INTEREST);
+            return entry;
+        });
+
+        Block firstRelevantLine = new Block("^IBAN : .*$");
+        type.addBlock(firstRelevantLine);
+        firstRelevantLine.set(pdfTransaction);
+
+        pdfTransaction
+                // 30.12.2022 1.36 0.00 1.36 0.00 1.36
+                .section("date")
+                .match("^(?<date>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4}) .*$")
+                .assign((t, v) -> t.setDateTime(asDate(v.get("date"))))
+
+                // IBAN : CH3308781000123456700 - Währung : CHF
+                // Total 1.36 0.00 1.36 0.00 1.36
+                .section("currency", "amount")
+                .match("^IBAN : .* W.hrung : (?<currency>[\\w]{3})$")
+                .match("^Total .* (?<amount>[\\.'\\d]+)$")
+                .assign((t, v) -> {
+                    t.setAmount(asAmount(v.get("amount")));
+                    t.setCurrencyCode(asCurrencyCode(v.get("currency")));
+                })
+
+                // Zinsabrechnung vom 05.09.2022 bis zum 31.12.2022
+                .section("note1", "note2", "note3").optional()
+                .match("^(?<note1>Zinsabrechnung) vom (?<note2>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4}) .* (?<note3>[\\d]{2}\\.[\\d]{2}\\.[\\d]{4})$")
+                .assign((t, v) -> {
+                    t.setNote(v.get("note1") + " " + v.get("note2") + " - " + v.get("note3"));
+                })
+
+                .wrap(TransactionItem::new);
+    }
+
     private <T extends Transaction<?>> void addTaxesSectionsTransaction(T transaction, DocumentType type)
     {
         transaction
                 // Abgabe (Eidg. Stempelsteuer) CHF 0.10
                 .section("currency", "tax").optional()
                 .match("^Abgabe \\(Eidg\\. Stempelsteuer\\) (?<currency>[\\w]{3}) (?<tax>[\\.'\\d]+)$")
+                .assign((t, v) -> processTaxEntries(t, v, type))
+
+                // Verrechnungssteuer 35% (CH) CHF 13.48
+                .section("currency", "tax").optional()
+                .match("^Verrechnungssteuer .* (?<currency>[\\w]{3}) (?<tax>[\\.'\\d]+)$")
                 .assign((t, v) -> processTaxEntries(t, v, type));
     }
 
@@ -144,18 +254,18 @@ public class YuhPDFExtractor extends AbstractPDFExtractor
     @Override
     protected long asAmount(String value)
     {
-        return PDFExtractorUtils.convertToNumberLong(value, Values.Amount, "de", "CH");
+        return ExtractorUtils.convertToNumberLong(value, Values.Amount, "de", "CH");
     }
 
     @Override
     protected long asShares(String value)
     {
-        return PDFExtractorUtils.convertToNumberLong(value, Values.Share, "de", "CH");
+        return ExtractorUtils.convertToNumberLong(value, Values.Share, "de", "CH");
     }
 
     @Override
     protected BigDecimal asExchangeRate(String value)
     {
-        return PDFExtractorUtils.convertToNumberBigDecimal(value, Values.Share, "de", "CH");
+        return ExtractorUtils.convertToNumberBigDecimal(value, Values.Share, "de", "CH");
     }
 }

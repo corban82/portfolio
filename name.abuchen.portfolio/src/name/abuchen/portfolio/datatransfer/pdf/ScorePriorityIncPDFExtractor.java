@@ -1,12 +1,16 @@
 package name.abuchen.portfolio.datatransfer.pdf;
 
-import static name.abuchen.portfolio.datatransfer.pdf.PDFExtractorUtils.checkAndSetTax;
+import static name.abuchen.portfolio.datatransfer.ExtractorUtils.checkAndSetTax;
+import static name.abuchen.portfolio.util.TextUtil.trim;
 
 import java.math.BigDecimal;
+import java.text.MessageFormat;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import name.abuchen.portfolio.Messages;
+import name.abuchen.portfolio.datatransfer.ExtractorUtils;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Block;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.DocumentType;
 import name.abuchen.portfolio.datatransfer.pdf.PDFParser.Transaction;
@@ -146,7 +150,7 @@ public class ScorePriorityIncPDFExtractor extends AbstractPDFExtractor
                                                     t.setSecurity(getOrCreateSecurity(v));
 
                                                     Money tax = Money.of(asCurrencyCode(CurrencyUnit.USD), asAmount(v.get("tax")));
-                                                    checkAndSetTax(tax, t, type);
+                                                    checkAndSetTax(tax, t, type.getCurrentContext());
                                                 })
                                         ,
                                         section -> section
@@ -235,20 +239,25 @@ public class ScorePriorityIncPDFExtractor extends AbstractPDFExtractor
                             v.put("date", v.get("day") + " " + v.get("month") + " " + context.get("year"));
                             v.put("currency", CurrencyUnit.USD);
 
+                            // if CUSIP lenght != 9
+                            if (trim(v.get("wkn")).length() < 9)
+                                v.getTransactionContext().put(FAILURE, MessageFormat.format(Messages.MsgErrorInvalidWKN, trim(v.get("name"))));
+                            else
+                                t.setSecurity(getOrCreateSecurity(v));
+
                             t.setDateTime(asDate(v.get("date")));
                             t.setAmount(asAmount(v.get("amount")));
                             t.setCurrencyCode(asCurrencyCode(CurrencyUnit.USD));
-                            t.setSecurity(getOrCreateSecurity(v));
-
-                            // if CUSIP lenght != 9
-                            if (v.get("wkn").length() < 9)
-                                t.setAmount(0L);
                         })
 
-                        .wrap(t -> {
+                        .wrap((t, ctx) -> {
                             if (t.getCurrencyCode() != null && t.getAmount() != 0)
-                                return new TransactionItem(t);
-                            return new NonImportableItem("CUSIP is maybe incorrect. " + t.getDateTime() + " " + t.getSecurity());
+                            {
+                                TransactionItem item = new TransactionItem(t);
+                                item.setFailureMessage(ctx.getString(FAILURE));
+                                return item;
+                            }
+                            return null;
                         }));
 
         // @formatter:off
@@ -361,18 +370,18 @@ public class ScorePriorityIncPDFExtractor extends AbstractPDFExtractor
     @Override
     protected long asAmount(String value)
     {
-        return PDFExtractorUtils.convertToNumberLong(value, Values.Amount, "en", "US");
+        return ExtractorUtils.convertToNumberLong(value, Values.Amount, "en", "US");
     }
 
     @Override
     protected long asShares(String value)
     {
-        return PDFExtractorUtils.convertToNumberLong(value, Values.Share, "en", "US");
+        return ExtractorUtils.convertToNumberLong(value, Values.Share, "en", "US");
     }
 
     @Override
     protected BigDecimal asExchangeRate(String value)
     {
-        return PDFExtractorUtils.convertToNumberBigDecimal(value, Values.Share, "en", "US");
+        return ExtractorUtils.convertToNumberBigDecimal(value, Values.Share, "en", "US");
     }
 }

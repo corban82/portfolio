@@ -7,10 +7,12 @@ import static org.junit.Assert.assertNull;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Test;
 
+import name.abuchen.portfolio.datatransfer.Extractor;
 import name.abuchen.portfolio.datatransfer.Extractor.BuySellEntryItem;
 import name.abuchen.portfolio.datatransfer.Extractor.Item;
 import name.abuchen.portfolio.datatransfer.Extractor.SecurityItem;
@@ -55,37 +57,47 @@ public class LimeTradingCorpPDFExtractorTest
         List<Item> results = extractor.extract(PDFInputFile.loadTestCase(getClass(), "AccountStatement01.txt"), errors);
 
         assertThat(errors, empty());
-        assertThat(results.size(), is(14));
+        assertThat(results.size(), is(15));
         new AssertImportActions().check(results, CurrencyUnit.USD);
 
         // check security
         Security security1 = results.stream().filter(SecurityItem.class::isInstance).findFirst()
                         .orElseThrow(IllegalArgumentException::new).getSecurity();
+        assertNull(security1.getIsin());
         assertThat(security1.getWkn(), is("067901108"));
+        assertNull(security1.getTickerSymbol());
         assertThat(security1.getName(), is("Barrick Gold Corp Com"));
         assertThat(security1.getCurrencyCode(), is(CurrencyUnit.USD));
 
         Security security2 = results.stream().filter(SecurityItem.class::isInstance).skip(1).findFirst()
                         .orElseThrow(IllegalArgumentException::new).getSecurity();
+        assertNull(security2.getIsin());
         assertThat(security2.getWkn(), is("78463V107"));
+        assertNull(security2.getTickerSymbol());
         assertThat(security2.getName(), is("Spdr Gold Trust Gold Shs"));
         assertThat(security2.getCurrencyCode(), is(CurrencyUnit.USD));
 
         Security security3 = results.stream().filter(SecurityItem.class::isInstance).skip(2).findFirst()
                         .orElseThrow(IllegalArgumentException::new).getSecurity();
+        assertNull(security3.getIsin());
         assertThat(security3.getWkn(), is("922908363"));
+        assertNull(security3.getTickerSymbol());
         assertThat(security3.getName(), is("Vanguard Index Fds S P 500 Etf Shs"));
         assertThat(security3.getCurrencyCode(), is(CurrencyUnit.USD));
 
         Security security4 = results.stream().filter(SecurityItem.class::isInstance).skip(3).findFirst()
                         .orElseThrow(IllegalArgumentException::new).getSecurity();
+        assertNull(security4.getIsin());
         assertThat(security4.getWkn(), is("756109104"));
+        assertNull(security4.getTickerSymbol());
         assertThat(security4.getName(), is("Realty Income C"));
         assertThat(security4.getCurrencyCode(), is(CurrencyUnit.USD));
 
         Security security5 = results.stream().filter(SecurityItem.class::isInstance).skip(4).findFirst()
                         .orElseThrow(IllegalArgumentException::new).getSecurity();
+        assertNull(security5.getIsin());
         assertThat(security5.getWkn(), is("922042742"));
+        assertNull(security5.getTickerSymbol());
         assertThat(security5.getName(), is("Vanguard Intl E"));
         assertThat(security5.getCurrencyCode(), is(CurrencyUnit.USD));
 
@@ -253,24 +265,28 @@ public class LimeTradingCorpPDFExtractorTest
         assertThat(transaction.getUnitSum(Unit.Type.FEE),
                         is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.00))));
 
-        // check interest transaction
-        transaction = (AccountTransaction) results.stream().filter(TransactionItem.class::isInstance).skip(4)
-                        .findFirst().orElseThrow(IllegalArgumentException::new).getSubject();
+        // check transaction
+        Iterator<Extractor.Item> iter = results.stream().filter(TransactionItem.class::isInstance).skip(4).iterator();
+        assertThat(results.stream().filter(TransactionItem.class::isInstance).count(), is(6L));
 
-        assertThat(transaction.getType(), is(AccountTransaction.Type.INTEREST));
+        Item item = iter.next();
 
-        assertThat(transaction.getDateTime(), is(LocalDateTime.parse("2022-03-31T00:00")));
-        assertThat(transaction.getShares(), is(Values.Share.factorize(0)));
+        // assert transaction
+        transaction = (AccountTransaction) item.getSubject();
+        assertThat(transaction.getType(), is(AccountTransaction.Type.DEPOSIT));
+        assertThat(transaction.getDateTime(), is(LocalDateTime.parse("2022-03-01T00:00")));
+        assertThat(transaction.getMonetaryAmount(), is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(9000.00))));
         assertThat(transaction.getSource(), is("AccountStatement01.txt"));
         assertNull(transaction.getNote());
 
-        assertThat(transaction.getMonetaryAmount(),
-                        is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.19))));
-        assertThat(transaction.getGrossValue(),
-                        is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.19))));
-        assertThat(transaction.getUnitSum(Unit.Type.TAX),
-                        is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.00))));
-        assertThat(transaction.getUnitSum(Unit.Type.FEE),
-                        is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.00))));
+        item = iter.next();
+
+        // assert transaction
+        transaction = (AccountTransaction) item.getSubject();
+        assertThat(transaction.getType(), is(AccountTransaction.Type.INTEREST));
+        assertThat(transaction.getDateTime(), is(LocalDateTime.parse("2022-03-31T00:00")));
+        assertThat(transaction.getMonetaryAmount(), is(Money.of(CurrencyUnit.USD, Values.Amount.factorize(0.19))));
+        assertThat(transaction.getSource(), is("AccountStatement01.txt"));
+        assertNull(transaction.getNote());
     }
 }

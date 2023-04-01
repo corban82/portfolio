@@ -75,8 +75,11 @@ public class Messages extends NLS
     public static String CSVFormatMMDDYY1;
     public static String CSVFormatMMDDYYYY;
     public static String CSVFormatMMDDYYYY1;
+    public static String CSVFormatMMMDDYYYY;
+    public static String CSVFormatNumberFrance;
     public static String CSVFormatNumberGermany;
     public static String CSVFormatNumberUS;
+    public static String CSVFormatYYYYMM;
     public static String CSVFormatYYYYMMDD;
     public static String CSVFormatYYYYMMDDSlashes;
     public static String CSVImportedSecurityLabel;
@@ -167,6 +170,7 @@ public class Messages extends NLS
     public static String LabelTradeCalendarDefault;
     public static String LabelTradeCalendarEuronext;
     public static String LabelTradeCalendarGermany;
+    public static String LabelTradeCalendarIBOV;
     public static String LabelTradeCalendarISE;
     public static String LabelTradeCalendarLSE;
     public static String LabelTradeCalendarMICEXRTS;
@@ -188,6 +192,8 @@ public class Messages extends NLS
     public static String LabelYahooFinanceAdjustedClose;
     public static String LabelEurostatHICP;
     public static String LabelECBStatisticalDataWarehouse;
+    public static String LabelESTR;
+    public static String LabelESTREONIACombined;
     public static String LabelEONIA;
     public static String LabelEURIBOR1M;
     public static String LabelEURIBOR3M;
@@ -242,9 +248,9 @@ public class Messages extends NLS
     public static String MsgErrorEncrypting;
     public static String MsgErrorIllegalForexUnit;
     public static String MsgErrorInvalidURL;
+    public static String MsgErrorInvalidWKN;
     public static String MsgErrorInvestmentPlanMissingSecurityPricesToGenerateTransaction;
     public static String MsgErrorMissingAPIKey;
-    public static String MsgErrorMissingDate;
     public static String MsgErrorMissingKeyValueInJSON;
     public static String MsgErrorMissingOnlineId;
     public static String MsgErrorMissingPathToDateOrClose;
@@ -278,7 +284,6 @@ public class Messages extends NLS
     public static String MsgMoreResultsAvailable;
     public static String MsgNegativeHoldingsDuringFIFOCostCalculation;
     public static String MsgNoExchangeRateAvailableForConversion;
-    public static String MsgNoExchangeRateAvailableForConversionTaxFee;
     public static String MsgNoExchangeRatesAvailableForCustomSeries;
     public static String MsgNoExchangeRateTimeSeriesFound;
     public static String MsgNoQuotesFoundInHTML;
@@ -294,7 +299,6 @@ public class Messages extends NLS
     public static String MsgUnexpectedValue;
     public static String MsgUnsupportedVersionClientFiled;
     public static String MsgXMLFormatInvalid;
-    public static String PDFdbLabel;
     public static String PDFdbMsgCannotDetermineFileType;
     public static String PDFMsgExtracingFiles;
     public static String PDFMsgFileNotSupported;
